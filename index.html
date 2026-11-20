@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="반죽을 붓고, 속을 넣고, 틀을 뒤집어 굽는 도트 붕어빵 미니게임">
 <title>붕어빵 굽기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1c1714">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
 :root{--bg:#1c1714;--stage:#372920;--line:#3a2f28;--fg:#f0e6da;--muted:#a8978a;--accent:#a8c7fa}
 *{box-sizing:border-box}
@@ -27,6 +31,14 @@ output{min-width:52px;font-variant-numeric:tabular-nums}
 #strip figure.on canvas{border-color:var(--accent)}
 #strip figcaption{text-align:center;font-size:12px;color:var(--muted);padding-top:3px}
 p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
+/* Installed as an app: no page chrome, the game fills the window at any size. */
+@media (display-mode: standalone){
+  h1{display:none}
+  main{max-width:none;padding:0}
+  #stage{border:0;width:min(100vw,calc((100vh - 34px) * 440 / 626))}
+  main > .row{margin-top:4px;justify-content:center}
+  main > .row button{padding:3px 10px;font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -35,6 +47,7 @@ p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
   <canvas id="stage" width="440" height="626" aria-label="붕어빵 가게 앞 거리와 붕어빵 틀이 있는 화면"></canvas>
   <div class="row">
     <button id="reset" type="button">처음부터</button>
+    <button id="install" type="button" hidden>앱으로 설치</button>
   </div>
   <!-- Tuning tools: open the page with ?dev at the end of its address to show them. -->
   <div id="dev" hidden>
@@ -68,5 +81,23 @@ p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
 </main>
 <script src="sprites.js"></script>
 <script src="game.js"></script>
+<script>
+// Installable app: works offline once opened, and offers an install button where the browser allows it.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
+let installPrompt = null;
+const installButton = document.getElementById('install');
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; installButton.hidden = false; });
+installButton.addEventListener('click', () => { installButton.hidden = true; installPrompt.prompt(); installPrompt = null; });
+addEventListener('appinstalled', () => { installButton.hidden = true; });
+// Opened as the installed app: start as a small window in the bottom-right corner, once per launch.
+try {
+  if (matchMedia('(display-mode: standalone)').matches && !sessionStorage.getItem('placed')) {
+    const w = 330 + outerWidth - innerWidth, h = Math.round(330 * 626 / 440) + 34 + outerHeight - innerHeight;
+    resizeTo(w, h);
+    moveTo(screen.availLeft + screen.availWidth - w - 12, screen.availTop + screen.availHeight - h - 12);
+    sessionStorage.setItem('placed', '1');
+  }
+} catch (e) { /* the browser may not allow moving the window; the app still works */ }
+</script>
 </body>
 </html>
