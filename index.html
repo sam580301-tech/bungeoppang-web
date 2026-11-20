@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="반죽을 붓고, 속을 넣고, 틀을 뒤집어 굽는 도트 붕어빵 미니게임">
+<title>붕어빵 굽기</title>
+<style>
+:root{--bg:#1c1714;--stage:#372920;--line:#3a2f28;--fg:#f0e6da;--muted:#a8978a;--accent:#a8c7fa}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px 16px 24px}
+h1{margin:0 0 14px;font-size:22px;font-weight:700;letter-spacing:.02em}
+#stage{cursor:none;display:block;margin:0 auto;width:min(100%,calc((100vh - 120px) * 440 / 412));aspect-ratio:440/412;image-rendering:pixelated;border:2px solid #120d0b;background:var(--stage);touch-action:none;user-select:none}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:12px;font-size:14px}
+select{font:inherit;color:var(--fg);background:#2a211c;border:1px solid var(--line);border-radius:5px;padding:4px 8px}
+button{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:5px;padding:6px 14px;cursor:pointer}
+button:hover{background:#2a211c}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+input[type=checkbox],input[type=range]{accent-color:var(--accent)}
+input[type=range]{width:150px;margin:0}
+output{min-width:52px;font-variant-numeric:tabular-nums}
+#strip{display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:6px}
+#strip figure{flex:none;margin:0;width:44%;cursor:pointer}
+#strip canvas{display:block;width:100%;image-rendering:pixelated;border:1px solid transparent}
+#strip figure.on canvas{border-color:var(--accent)}
+#strip figcaption{text-align:center;font-size:12px;color:var(--muted);padding-top:3px}
+p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <h1>붕어빵 굽기</h1>
+  <canvas id="stage" width="440" height="412" aria-label="붕어빵 틀과 주전자가 놓인 화면"></canvas>
+  <div class="row">
+    <button id="reset" type="button">처음부터</button>
+  </div>
+  <!-- Tuning tools: open the page with ?dev at the end of its address to show them. -->
+  <div id="dev" hidden>
+  <div class="row">
+    <button id="close" type="button">닫기 재생</button>
+    <button id="open" type="button">열기 재생</button>
+    <label><input id="loop" type="checkbox">반복</label>
+  </div>
+  <div class="row">
+    <label for="speed">속도</label>
+    <input id="speed" type="range" min="200" max="2000" step="50" value="850">
+    <output id="speedOut" for="speed">850ms</output>
+    <label for="frame">프레임</label>
+    <input id="frame" type="range" min="0" max="12" step="1" value="0">
+  </div>
+  <div class="row">
+    <label for="coverSpeed">덮는 속도</label>
+    <input id="coverSpeed" type="range" min="30" max="300" step="10" value="70">
+    <output id="coverSpeedOut" for="coverSpeed">70%</output>
+    <label for="fadeSpeed">명암 사라지는 속도</label>
+    <input id="fadeSpeed" type="range" min="30" max="300" step="10" value="60">
+    <output id="fadeSpeedOut" for="fadeSpeed">60%</output>
+  </div>
+  <div class="row">
+    <label><input id="timerEdit" type="checkbox">타이머 위치 조정</label>
+    <output id="timerSpot"></output>
+  </div>
+  <div id="strip"></div>
+  <p>원본 이미지를 약 7px당 1도트로 줄이고 팔레트로 색을 정리한 뒤, 뚜껑을 두께와 볼록한 돔이 있는 입체로 보고 각도별 프레임을 미리 구웠어요. 프레임을 클릭하면 그 프레임에서 멈춰요. 주전자, 슈크림·팥 파우치, 갈고리, 브러쉬를 클릭하면 집어 들고, 다시 클릭하거나 우클릭하면 내려놓아요. 든 채 살짝 클릭하면 조금, 길게 누르면 쭉 부어져요(틀이 완전히 열렸을 때만). 누른 채 움직이면 내용물도 따라가요. 완성된 붕어빵은 갈고리로 클릭해 꺼내요. 꺼낸 붕어빵은 클릭하면 주변 껍데기가 떨어지고, 빈손으로 끌면 위쪽 전시대로 옮겨져요. 틀에 남은 부스러기는 브러쉬로 클릭해 털어내요. 초기화는 전부 지워요.</p>
+  </div>
+</main>
+<script src="sprites.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
