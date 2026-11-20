@@ -11,7 +11,7 @@
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif}
 main{max-width:720px;margin:0 auto;padding:16px 16px 24px}
 h1{margin:0 0 14px;font-size:22px;font-weight:700;letter-spacing:.02em}
-#stage{cursor:none;display:block;margin:0 auto;width:min(100%,calc((100vh - 120px) * 440 / 412));aspect-ratio:440/412;image-rendering:pixelated;border:2px solid #120d0b;background:var(--stage);touch-action:none;user-select:none}
+#stage{cursor:none;display:block;margin:0 auto;width:min(100%,calc((100vh - 120px) * 440 / 626));aspect-ratio:440/626;image-rendering:pixelated;border:2px solid #120d0b;background:var(--stage);touch-action:none;user-select:none}
 .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:12px;font-size:14px}
 select{font:inherit;color:var(--fg);background:#2a211c;border:1px solid var(--line);border-radius:5px;padding:4px 8px}
 button{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:5px;padding:6px 14px;cursor:pointer}
@@ -32,7 +32,7 @@ p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
 <body>
 <main>
   <h1>붕어빵 굽기</h1>
-  <canvas id="stage" width="440" height="412" aria-label="붕어빵 틀과 주전자가 놓인 화면"></canvas>
+  <canvas id="stage" width="440" height="626" aria-label="붕어빵 가게 앞 거리와 붕어빵 틀이 있는 화면"></canvas>
   <div class="row">
     <button id="reset" type="button">처음부터</button>
   </div>

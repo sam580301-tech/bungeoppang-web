@@ -3,7 +3,9 @@
 // Stage layout in dots comes from tools/build-sprites.ps1.
 const L = window.LAYOUT;
 const { W, H } = L, CX = L.cx, CY = L.cy;
-const TOP = L.top;                // the display rack sits above the stage, at negative y
+// Above the stage, at negative y: the street on top, then the display rack.
+const RACK = L.top, STREET_H = L.street, TOP = RACK + STREET_H;
+const onRack = y => y < 0 && y >= -RACK;
 const SHELF = { scale: 0.5, x0: 8, gap: 65, y: -56, max: 6 };
 const HAND = { x: 11, y: 0 };     // fingertip of the bare-hand cursor
 const LID_GRAB = 70;              // shut, the lid is grabbed beyond this far from the hinge (its far end)
@@ -553,7 +555,8 @@ function draw(now) {
   ctx.putImageData(image, 0, TOP);
   ctx.save();
   ctx.translate(0, TOP);
-  ctx.drawImage(art.shelf, 0, -TOP);
+  drawStreet(now);
+  ctx.drawImage(art.shelf, 0, -RACK);
   drawShelf();
   ctx.globalAlpha = 0.85;
   ctx.drawImage(art.cup, L.tools.cup.x, L.tools.cup.y);
@@ -1084,7 +1087,7 @@ function updateBread(dt) {
       b.cx += (W / 2 - b.cx) * k; b.cy += (H / 2 - b.cy) * k;
       if (Math.hypot(W / 2 - b.cx, H / 2 - b.cy) < 1) { b.cx = W / 2; b.cy = H / 2; b.homing = false; }
     }
-    const overShelf = b.grab && b.grab.moved && state.ptr.y < 0;
+    const overShelf = b.grab && b.grab.moved && onRack(state.ptr.y);
     b.scale += ((overShelf ? SHELF.scale : 1) - b.scale) * Math.min(1, dt * 16);
     b.x = Math.round(b.cx - b.w / 2); b.y = Math.round(b.cy - b.h / 2);
     b.shake = Math.max(0, b.shake - dt);
@@ -1132,6 +1135,142 @@ function updateSteam(now, dt) {
       vy: -(9 + Math.random() * 10), sway: Math.random() * 6.283, age: 0, life: 1.1 + Math.random() * 1.3,
     });
   }
+}
+
+// ---- the street: local time of day and people walking by ----
+
+const street = { day: null, kind: null, canvas: null, hour: -1, dark: 0, walkers: [], nextAt: 0 };
+const SKY = 1, GLOW = 2;
+
+function setUpStreet(p) {
+  street.day = p.p;
+  street.kind = new Uint8Array(p.p.length);
+  for (let i = 0; i < p.p.length; i++) {
+    const c = p.p[i], r = c & 255, g = c >> 8 & 255, b = c >> 16 & 255;
+    // Warm and bright is a lamp, a lit sign or a shop's lights: it stays lit after dark.
+    if (r > 225 && g > 170 && b < 150 && r > b + 90 && (i / p.w | 0) < L.walkFeet[0]) street.kind[i] = GLOW; // road paint is not a light
+    else if (b > r + 25 && b >= g && (i / p.w | 0) < 80) street.kind[i] = SKY;
+  }
+  street.canvas = document.createElement('canvas');
+  street.canvas.width = p.w; street.canvas.height = p.h;
+}
+
+// Hours as a decimal; ?time=21.5 on the address overrides the clock for checking the look.
+function streetHour() {
+  const q = new URLSearchParams(location.search).get('time');
+  if (q !== null && !isNaN(+q)) return ((+q % 24) + 24) % 24;
+  const d = new Date();
+  return d.getHours() + d.getMinutes() / 60;
+}
+
+// How dark it is (0 day, 1 night) and how much sunset or sunrise colour is in the light.
+function daylight(h) {
+  const dark = h >= 7.5 && h < 17 ? 0 : h >= 17 && h < 20 ? (h - 17) / 3 : h >= 5 && h < 7.5 ? 1 - (h - 5) / 2.5 : 1;
+  const warm = Math.max(0, 1 - Math.abs(h - 18) / 1.6, 1 - Math.abs(h - 6.3) / 1.3);
+  return { dark: dark * dark * (3 - 2 * dark), warm };
+}
+
+function gradeStreet(h) {
+  const { dark, warm } = daylight(h), src = street.day, kind = street.kind, w = street.canvas.width;
+  const g = street.canvas.getContext('2d'), out = g.createImageData(w, street.canvas.height), o = new Uint32Array(out.data.buffer);
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    let r = c & 255, gr = c >> 8 & 255, b = c >> 16 & 255;
+    let nr, ng, nb;
+    if (kind[i] === GLOW) { nr = Math.min(255, r * 1.08); ng = Math.min(255, gr * 1.05); nb = b * 0.9; }
+    else if (kind[i] === SKY) {
+      const y = i / w | 0, s = (i * 2654435761 >>> 0) % 997; // fixed stars
+      nr = 14 + y * 0.18; ng = 20 + y * 0.25; nb = 48 + y * 0.4;
+      if (s < 3 && dark > 0.6) nr = ng = nb = 220;
+    } else { nr = r * 0.24 + 4; ng = gr * 0.27 + 6; nb = b * 0.42 + 16; }
+    r = r + (nr - r) * dark; gr = gr + (ng - gr) * dark; b = b + (nb - b) * dark;
+    if (warm && kind[i] !== GLOW) { r *= 1 + 0.22 * warm; gr *= 1 + 0.02 * warm; b *= 1 - 0.22 * warm; }
+    o[i] = (0xff000000 | Math.min(255, b) << 16 | Math.min(255, gr) << 8 | Math.min(255, r)) >>> 0;
+  }
+  g.putImageData(out, 0, 0);
+  street.dark = dark;
+}
+
+const SKIN = ['#f1c9a2', '#e2ad80', '#c98d60', '#8f5c3c'];
+const HAIR = ['#17120f', '#3a2618', '#6b4528', '#a49a90', '#b8862e', '#2a2a33'];
+const CLOTH = ['#b5b7bd', '#2e3a5c', '#7a2f2f', '#3f5a3a', '#c9a24e', '#5a4a6e', '#d8d2c4', '#2b2b2e', '#9c5a32', '#4f6f8f', '#c86b7a'];
+const LEGS = ['#232a45', '#1d1d22', '#5b5248', '#3e5578', '#6e6255'];
+const pickOf = a => a[Math.random() * a.length | 0];
+
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v * k)));
+  return 'rgb(' + f(n >> 16) + ',' + f(n >> 8 & 255) + ',' + f(n & 255) + ')';
+}
+
+// A side-on passer-by in four walking frames, drawn one dot per stage-pixel pair, facing right.
+function makeWalker() {
+  const legLen = Math.random() < 0.15 ? 5 : 7, hairStyle = Math.random() * 4 | 0;
+  const skin = pickOf(SKIN), hair = pickOf(HAIR), top = pickOf(CLOTH), coat = Math.random() < 0.45;
+  const legs = pickOf(LEGS), skirt = !coat && Math.random() < 0.2, shoes = Math.random() < 0.3 ? '#e8e4dc' : '#151214';
+  const scarf = Math.random() < 0.3 ? pickOf(['#b8322e', '#e0b84a', '#3a6ea5', '#f2f0ea']) : null;
+  const bag = Math.random() < 0.35 ? pickOf(['#6b4428', '#2b2b2e', '#c7b89a']) : null;
+  const cap = hairStyle === 2 ? pickOf(CLOTH) : null;
+  const h = 17 + legLen, frames = [];
+  for (let f = 0; f < 4; f++) {
+    const c = document.createElement('canvas');
+    c.width = 10; c.height = h;
+    const g = c.getContext('2d');
+    const px = (x, y, col, w = 1, hh = 1) => { g.fillStyle = col; g.fillRect(x, y, w, hh); };
+    const swing = f === 1 ? 1 : f === 3 ? -1 : 0, bob = f % 2;
+    // legs: back leg darker, both swing opposite ways below the knee
+    const hip = 16 - bob, knee = hip + (legLen >> 1);
+    const leg = (x, dx, col) => { px(x, hip, col, 2, knee - hip); px(x + dx, knee, col, 2, h - 1 - knee); px(x + dx + (dx >= 0 ? 0 : 0), h - 1, shoes, 3, 1); };
+    if (skirt) { leg(4, -swing, skin); leg(5, swing, skin); px(3, hip, top, 5, 3); }
+    else { leg(3, -swing, shade(legs, 0.75)); leg(5, swing, legs); }
+    // body
+    const body = coat ? shade(top, 0.9) : top, bodyEnd = coat ? hip + 2 : hip;
+    px(3, 8 - bob, body, 4, bodyEnd - 8 + bob);
+    px(3, 8 - bob, shade(body.startsWith('#') ? body : top, 0.8), 1, bodyEnd - 8 + bob);
+    if (!coat && !skirt) px(3, hip - 1, '#2a1c16', 4, 1);
+    if (bag) { px(1, 11 - bob, bag, 2, 5); px(2, 9 - bob, shade(bag, 0.7), 1, 2); }
+    // arm swings against the front leg
+    px(4 - swing, 9 - bob, shade(top, 0.78), 2, 5); px(4 - swing, 14 - bob, skin, 2, 1);
+    if (scarf) { px(3, 8 - bob, scarf, 4, 1); px(6, 9 - bob, scarf, 1, 2); }
+    // head and hair
+    px(4, 7 - bob, skin, 2, 1);
+    px(3, 2 - bob, skin, 4, 5);
+    px(3, 1 - bob, hair, 4, 2); px(3, 3 - bob, hair, 1, 2);
+    if (hairStyle === 1) px(2, 2 - bob, hair, 2, 7);
+    if (hairStyle === 3) px(2, 1 - bob, hair, 1, 2);
+    if (cap) { px(3, 0 - bob, cap, 4, 2); px(7, 1 - bob, cap, 1, 1); }
+    frames.push(c);
+  }
+  const dir = Math.random() < 0.5 ? 1 : -1, lane = Math.random() * L.walkFeet.length | 0;
+  return { frames, dir, lane, feet: L.walkFeet[lane], h, x: dir > 0 ? -24 : W + 4, speed: 18 + Math.random() * 12, step: 0 };
+}
+
+function updateStreet(now, dt) {
+  const h = streetHour();
+  if (Math.abs(h - street.hour) > 1 / 60) { street.hour = h; gradeStreet(h); }
+  if (now >= street.nextAt) {
+    if (street.walkers.length < 5) street.walkers.push(makeWalker());
+    street.nextAt = now + (1500 + Math.random() * 3500) * (1 + street.dark); // quieter after dark
+  }
+  for (const p of street.walkers) { p.x += p.dir * p.speed * dt; p.step += p.speed * dt; }
+  street.walkers = street.walkers.filter(p => p.x > -30 && p.x < W + 30);
+}
+
+function drawStreet() {
+  ctx.drawImage(street.canvas, 0, -TOP);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, -TOP, W, STREET_H); ctx.clip();
+  if (street.dark > 0.05) ctx.filter = 'brightness(' + (1 - 0.62 * street.dark).toFixed(2) + ') saturate(' + (1 - 0.35 * street.dark).toFixed(2) + ')';
+  for (const p of [...street.walkers].sort((a, b) => a.feet - b.feet)) {
+    const fr = p.frames[(p.step / 6 | 0) % 4], y = -TOP + p.feet - p.h * 2, x = Math.round(p.x);
+    ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(x + 2, -TOP + p.feet - 1, 14, 2); ctx.globalAlpha = 1;
+    ctx.save();
+    ctx.translate(x + (p.dir < 0 ? 20 : 0), y);
+    ctx.scale(2 * p.dir, 2);
+    ctx.drawImage(fr, 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 // ---- timer ----
@@ -1392,7 +1531,7 @@ function letGo() {
     const { moved } = b.grab;
     b.grab = null;
     if (!moved) chipBread(b);
-    else if (state.ptr.y < 0) shelveBread(b);
+    else if (onRack(state.ptr.y)) shelveBread(b);
     else b.homing = true;
   }
   const fl = state.flip;
@@ -1504,6 +1643,7 @@ function tick(now) {
   updateSpray(dt);
   updateFlip(dt);
   updateBread(dt);
+  updateStreet(now, dt);
   if (state.cooking && state.flip.angle === 0) { state.cook += dt; state.timerAge += dt; }
   updateSteam(now, dt);
   updateSmoke(now, dt);
@@ -1513,12 +1653,13 @@ function tick(now) {
 }
 
 (async function start() {
-  const S = window.SPRITES, names = ['mold', 'cavity', 'lid', 'lidIn', 'side', 'bg', 'cup', 'hand', 'shelf', ...RESULTS.map(r => r.sprite)];
+  const S = window.SPRITES, names = ['mold', 'cavity', 'lid', 'lidIn', 'side', 'bg', 'cup', 'hand', 'shelf', 'street', ...RESULTS.map(r => r.sprite)];
   for (const name in TOOLS) names.push(TOOLS[name].sprite, TOOLS[name].icon);
   const img = {};
   await Promise.all(names.map(async k => { img[k] = await loadImage(S[k]); }));
   art.side = pixels(img.side);
   art.cup = img.cup; art.hand = img.hand; art.shelf = img.shelf;
+  setUpStreet(pixels(img.street));
   bgArt.set(pixels(img.bg).p);
   for (const name in TOOLS) art[name] = bakeToolArt(TOOLS[name], img[TOOLS[name].sprite], img[TOOLS[name].icon]);
   layOutArt(pixels(img.mold), pixels(img.cavity), pixels(img.lidIn), pixels(img.lid));
