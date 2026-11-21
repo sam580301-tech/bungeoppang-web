@@ -47,6 +47,8 @@ p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
   <canvas id="stage" width="440" height="626" aria-label="붕어빵 가게 앞 거리와 붕어빵 틀이 있는 화면"></canvas>
   <div class="row">
     <button id="reset" type="button">처음부터</button>
+    <button id="sfx" type="button"></button>
+    <button id="music" type="button"></button>
     <button id="install" type="button" hidden>앱으로 설치</button>
   </div>
   <!-- Tuning tools: open the page with ?dev at the end of its address to show them. -->
@@ -80,6 +82,7 @@ p{margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
   </div>
 </main>
 <script src="sprites.js"></script>
+<script src="sound.js"></script>
 <script src="game.js"></script>
 <script>
 // Installable app: works offline once opened, and offers an install button where the browser allows it.

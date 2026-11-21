@@ -912,6 +912,7 @@ function cookedFor() {
 
 function bake(now) {
   const time = cookedFor();
+  if (!state.baked) sfx('reveal');
   state.baked = true;
   state.result = SMOKE_PHASES.findIndex(p => time < p.until);
   if (!state.toasted) rollToast();
@@ -947,6 +948,7 @@ function paintBread(b) {
 // Everything baked in the mold becomes one loose piece, resampled level with the head to the left,
 // so it can settle flat in the middle of the stage; the mold is left empty.
 function liftBread() {
+  sfx('lift');
   scatterCrumbs();
   const piece = i => bakedView[i] || (zone[i] === CAV_R ? fillView[i] : 0);
   const at = (x, y) => {
@@ -1012,6 +1014,7 @@ function scatterCrumbs() {
 // One flick of the brush sends the nearest crumbs flying off.
 function brushCrumbs(p, now) {
   state.brushAt = now;
+  sfx('brush');
   const away = c => Math.hypot(c.x - p.x, c.y - p.y);
   const near = state.moldCrumbs.filter(c => away(c) <= BRUSH_REACH).sort((a, b) => away(a) - away(b)).slice(0, BRUSH_TAKE);
   for (const c of near) {
@@ -1023,6 +1026,7 @@ function brushCrumbs(p, now) {
 }
 
 function shelveBread(b) {
+  sfx('shelve');
   state.shelf.push(b);
   if (state.shelf.length > SHELF.max) state.shelf.shift();
   state.bread = null;
@@ -1051,6 +1055,7 @@ function dropCrumb(x, y, color, size, vx, vy) {
 // One knock: a random piece of the baked-on crust breaks away and falls, shedding crumbs.
 function chipBread(b) {
   b.shake = 0.14;
+  sfx('crunch');
   const colorAt = k => css(b.px[k]);
   if (!b.crust.length) {
     // Nothing left to break off: only a dusting from the edge.
@@ -1135,6 +1140,21 @@ function updateSteam(now, dt) {
       vy: -(9 + Math.random() * 10), sway: Math.random() * 6.283, age: 0, life: 1.1 + Math.random() * 1.3,
     });
   }
+}
+
+// ---- sound levels from what is going on ----
+
+function playLoops(now) {
+  const pouring = pouringNow(), cooking = state.cooking && state.frame === LAST;
+  const phase = cooking ? SMOKE_PHASES.findIndex(p => state.cook < p.until) : 0;
+  setLoops({
+    pour: pouring && state.held === 'kettle' ? 1 : 0,
+    paste: pouring && state.held !== 'kettle' ? 1 : 0,
+    sizzle: cooking ? [0.55, 0.75, 0.9, 1][phase] : now < state.steamUntil && state.frame === 0 ? 0.3 : 0,
+    pops: cooking && phase === 3 ? 0.08 : cooking && phase === 2 ? 0.02 : 0,
+    street: 1 - 0.5 * street.dark,
+  });
+  updateMusic();
 }
 
 // ---- the street: local time of day and people walking by ----
@@ -1347,7 +1367,7 @@ function updateFlip(dt) {
     if (fl.angle >= 180) finishFlip();
   } else if (fl.turning) {
     fl.angle += (fl.pull * 170 - fl.angle) * Math.min(1, dt * 18);
-    if (fl.pull >= 1) { fl.turning = false; fl.finishing = true; }
+    if (fl.pull >= 1) { fl.turning = false; fl.finishing = true; sfx('flip'); }
   } else if (fl.angle > 0) {
     fl.angle = Math.max(0, fl.angle - dt * 420); // let go too early and it falls back
   }
@@ -1366,6 +1386,7 @@ function finishFlip() {
 
 function setFrame(n) {
   if (n === state.frame) return;
+  if (n === LAST) sfx('shut'); else if (n === 0) sfx('open');
   state.frame = n;
   frameInput.value = n;
   thumbs.forEach((t, i) => t.classList.toggle('on', i === n));
@@ -1455,6 +1476,7 @@ function dragLid(p) {
 }
 
 function celebrate(name, now) {
+  sfx('pick');
   state.bounce = { tool: name, at: now };
   const { edge, w } = art[name], tool = TOOLS[name];
   for (let n = 0; n < 7; n++) {
@@ -1472,11 +1494,11 @@ canvas.addEventListener('pointerdown', e => {
     return;
   }
   state.ptr.x = state.ptr.lastX = p.x; state.ptr.y = state.ptr.lastY = p.y;
-  if (e.button === 2) { setHeld(null); return; }
+  if (e.button === 2) { if (state.held) sfx('drop'); setHeld(null); return; }
   if (e.button !== 0) return;
   const tool = toolAt(p);
   if (tool) {
-    if (tool === state.held) setHeld(null);
+    if (tool === state.held) { sfx('drop'); setHeld(null); }
     else { celebrate(tool, now); setHeld(tool); }
     return;
   }
@@ -1541,11 +1563,21 @@ canvas.addEventListener('pointerup', letGo);
 canvas.addEventListener('pointercancel', letGo);
 
 document.getElementById('dev').hidden = !new URLSearchParams(location.search).has('dev');
+const sfxButton = document.getElementById('sfx'), musicButton = document.getElementById('music');
+const labelSound = () => {
+  sfxButton.textContent = sfxOn ? '소리 켜짐' : '소리 꺼짐';
+  musicButton.textContent = musicOn ? '음악 켜짐' : '음악 꺼짐';
+  sfxButton.setAttribute('aria-pressed', sfxOn); musicButton.setAttribute('aria-pressed', musicOn);
+};
+sfxButton.addEventListener('click', () => { setSfx(!sfxOn); labelSound(); });
+musicButton.addEventListener('click', () => { setMusic(!musicOn); labelSound(); });
+labelSound();
 const showTimerSpot = () => { document.getElementById('timerSpot').textContent = 'x: ' + TIMER.x + ', y: ' + TIMER.y; };
 document.getElementById('timerEdit').addEventListener('change', e => { state.timerEdit = e.target.checked; });
 document.getElementById('close').addEventListener('click', () => play(1));
 document.getElementById('open').addEventListener('click', () => play(-1));
 document.getElementById('reset').addEventListener('click', () => {
+  sfx('reset');
   stop(); state.loopWait = 0;
   batter.fill(0); fillH.fill(0); fillKind.fill(0); fillView.fill(0); fillShadow.fill(0); fillWas.fill(0); buried.fill(0); raised.fill(0);
   state.smoke = []; state.drops = []; state.sources = []; state.splash = []; state.impacts = []; state.sparkles = [];
@@ -1644,7 +1676,15 @@ function tick(now) {
   updateFlip(dt);
   updateBread(dt);
   updateStreet(now, dt);
-  if (state.cooking && state.flip.angle === 0) { state.cook += dt; state.timerAge += dt; }
+  if (state.cooking && state.flip.angle === 0) {
+    const before = state.cook;
+    state.cook += dt; state.timerAge += dt;
+    const crossed = s => before < s && state.cook >= s;
+    if (crossed(COOK_SECONDS)) sfx('ding');
+    else if (crossed(SMOKE_PHASES[2].until)) sfx('burnt');
+    else if (state.cook < COOK_SECONDS && Math.floor(before) !== Math.floor(state.cook)) sfx('tick');
+  }
+  playLoops(now);
   updateSteam(now, dt);
   updateSmoke(now, dt);
   state.sparkles = state.sparkles.filter(s => now - s.at < SPARKLE_MS);

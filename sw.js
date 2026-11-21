@@ -1,7 +1,7 @@
 // Keeps the installed app playable offline. Files are served from the cache at once and refreshed
 // in the background, so a new deploy shows up the next time the app is opened.
 const CACHE = 'bungeoppang';
-const FILES = ['./', 'index.html', 'game.js', 'sprites.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const FILES = ['./', 'index.html', 'game.js', 'sound.js', 'sprites.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
